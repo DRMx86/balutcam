@@ -13,11 +13,11 @@ struct ContentView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text(\"Capture mode\")
+                        Text("Capture mode")
                             .font(.headline)
                         Spacer()
-                        Picker(\"Mode\", selection: $viewModel.captureMode) {
-                            ForEach(CaptureMode.allCases, id: \\.self) { mode in
+                        Picker("Mode", selection: $viewModel.captureMode) {
+                            ForEach(CaptureMode.allCases, id: \.self) { mode in
                                 Text(mode.rawValue).tag(mode)
                             }
                         }
@@ -26,7 +26,7 @@ struct ContentView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
-                        Text(\"Film look\")
+                        Text("Film look")
                             .font(.headline)
 
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -38,7 +38,7 @@ struct ContentView: View {
                                         VStack(alignment: .leading) {
                                             Text(preset.name)
                                                 .font(.subheadline.weight(.semibold))
-                                            Text(\"Grain \\(preset.grain, specifier: \\\"%.2f\\\")\")
+                                            Text("Grain \(preset.grain, specifier: "%.2f")")
                                                 .font(.caption)
                                                 .foregroundStyle(.secondary)
                                         }
@@ -54,20 +54,20 @@ struct ContentView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(\"Adjustments\")
+                        Text("Adjustments")
                             .font(.headline)
 
-                        ControlSlider(title: \"Contrast\", value: $viewModel.contrast, range: 0.6...1.8)
-                        ControlSlider(title: \"Saturation\", value: $viewModel.saturation, range: 0.6...1.8)
-                        ControlSlider(title: \"Brightness\", value: $viewModel.brightness, range: -0.5...0.5)
-                        ControlSlider(title: \"Warmth\", value: $viewModel.warmth, range: -0.5...0.5)
-                        ControlSlider(title: \"Grain\", value: $viewModel.grain, range: 0...1)
-                        ControlSlider(title: \"Vignette\", value: $viewModel.vignette, range: 0...1)
-                        ControlSlider(title: \"LUT strength\", value: $viewModel.lutStrength, range: 0...1)
+                        ControlSlider(title: "Contrast", value: $viewModel.contrast, range: 0.6...1.8)
+                        ControlSlider(title: "Saturation", value: $viewModel.saturation, range: 0.6...1.8)
+                        ControlSlider(title: "Brightness", value: $viewModel.brightness, range: -0.5...0.5)
+                        ControlSlider(title: "Warmth", value: $viewModel.warmth, range: -0.5...0.5)
+                        ControlSlider(title: "Grain", value: $viewModel.grain, range: 0...1)
+                        ControlSlider(title: "Vignette", value: $viewModel.vignette, range: 0...1)
+                        ControlSlider(title: "LUT strength", value: $viewModel.lutStrength, range: 0...1)
                     }
 
                     HStack(spacing: 12) {
-                        Button(viewModel.captureMode == .video ? \"Stop video\" : \"Capture\") {
+                        Button(viewModel.captureMode == .video ? "Stop video" : "Capture") {
                             if viewModel.captureMode == .video {
                                 viewModel.stopVideoCapture()
                             } else {
@@ -76,26 +76,26 @@ struct ContentView: View {
                         }
                         .buttonStyle(.borderedProminent)
 
-                        Button(\"Save preset\") {
-                            viewModel.saveCustomPreset(name: \"Custom \\(viewModel.presetList.count + 1)\")
+                        Button("Save preset") {
+                            viewModel.saveCustomPreset(name: "Custom \(viewModel.presetList.count + 1)")
                         }
                         .buttonStyle(.bordered)
                     }
 
                     HStack(spacing: 12) {
-                        Button(\"Select photo\") {
-                            viewModel.addLibraryItem(MediaAsset(id: UUID(), title: \"Imported Photo\", kind: .photo, source: \"Camera Roll\"))
+                        Button("Select photo") {
+                            viewModel.addLibraryItem(MediaAsset(id: UUID(), title: "Imported Photo", kind: .photo, source: "Camera Roll"))
                         }
                         .buttonStyle(.bordered)
 
-                        Button(\"Select video\") {
-                            viewModel.addLibraryItem(MediaAsset(id: UUID(), title: \"Imported Video\", kind: .video, source: \"Camera Roll\"))
+                        Button("Select video") {
+                            viewModel.addLibraryItem(MediaAsset(id: UUID(), title: "Imported Video", kind: .video, source: "Camera Roll"))
                         }
                         .buttonStyle(.bordered)
                     }
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(\"Status\")
+                        Text("Status")
                             .font(.headline)
                         Text(viewModel.status)
                             .font(.subheadline)
@@ -121,11 +121,11 @@ struct ContentView: View {
 
                 Spacer()
             }
-            .navigationTitle(\"BalutCam\")
+            .navigationTitle("BalutCam")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(\"LUTs\") {
-                        viewModel.status = \"User LUT folder ready\"
+                    Button("LUTs") {
+                        viewModel.status = "User LUT folder ready"
                     }
                 }
             }
@@ -143,7 +143,7 @@ struct ControlSlider: View {
             HStack {
                 Text(title)
                 Spacer()
-                Text(String(format: \"%.2f\", value))
+                Text(String(format: "%.2f", value))
                     .foregroundStyle(.secondary)
             }
             Slider(value: $value, in: range)

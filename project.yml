@@ -1,8 +1,10 @@
 name: BalutCam
+
 options:
   bundleIdPrefix: com.drmx86
   deploymentTarget:
     iOS: "16.0"
+  createIntermediateGroups: true
 
 settings:
   base:
@@ -12,6 +14,7 @@ settings:
     SWIFT_VERSION: "5.9"
     TARGETED_DEVICE_FAMILY: "1,2"
     ENABLE_PREVIEWS: YES
+    GENERATE_INFOPLIST_FILE: YES
 
 targets:
   BalutCam:
@@ -19,20 +22,13 @@ targets:
     platform: iOS
     deploymentTarget: "16.0"
     sources:
-      - BalutCam
-    resources:
-      - path: BalutCam/Assets.xcassets
-      - path: BalutCam/Preview\\ Content
-    info:
-      path: BalutCam/Info.plist
-      properties:
-        CFBundleDisplayName: BalutCam
-        CFBundleIdentifier: com.drmx86.BalutCam
-        CFBundleShortVersionString: "1.0"
-        CFBundleVersion: "1"
-        LSRequiresIPhoneOS: true
-        NSCameraUsageDescription: "BalutCam uses the camera to capture photos and videos with film-inspired LUT effects."
-        NSPhotoLibraryUsageDescription: "BalutCam imports your existing media so you can apply LUTs and save edited versions."
-        NSPhotoLibraryAddUsageDescription: "BalutCam saves processed photos and videos to your photo library."
-        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
-        UIRequiresFullScreen: true
+      - path: BalutCam
+    settings:
+      base:
+        INFOPLIST_KEY_CFBundleDisplayName: BalutCam
+        INFOPLIST_KEY_NSCameraUsageDescription: "BalutCam uses the camera to capture photos and videos with film-inspired LUT effects."
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "BalutCam imports your existing media so you can apply LUTs and save edited versions."
+        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "BalutCam saves processed photos and videos to your photo library."
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait"
+        INFOPLIST_KEY_UIRequiresFullScreen: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES

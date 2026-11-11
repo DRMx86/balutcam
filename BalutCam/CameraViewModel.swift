@@ -49,7 +49,7 @@ final class CameraViewModel: ObservableObject {
         )
         presetList.insert(preset, at: 0)
         selectedPresetName = name
-        status = "Saved preset: \\(name)"
+        status = "Saved preset: \(name)"
     }
 
     func resetToPreset() {
@@ -80,7 +80,7 @@ final class CameraViewModel: ObservableObject {
 
     func addLibraryItem(_ item: MediaAsset) {
         libraryItems.insert(item, at: 0)
-        status = "Imported \\(item.title) from library"
+        status = "Imported \(item.title) from library"
     }
 
     func removePreset(_ preset: LUTAdjustment) {
