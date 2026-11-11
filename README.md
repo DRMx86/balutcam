@@ -1,10 +1,28 @@
 # BalutCam
 
-BalutCam is an iOS app scaffold for a LUT-based film camera experience.
+Film-look photo and video camera for iOS 16+ (SwiftUI, AVFoundation, Core Image, Metal).
 
-- Photo and video capture modes
-- Kodak-inspired film looks and LUT intensity controls
-- User-supplied LUT folder support
-- Preset management with custom save/load flows
-- GitHub Actions workflow for iOS build verification
-- iOS 16+ deployment target
+## Features
+- Live camera preview with the look applied in real time; video is recorded already graded, photos are graded at full resolution
+- Film presets inspired by classic Kodak-style stocks (approximations built from the sliders, not official profiles) plus your own saved presets (JSON in Application Support)
+- 3D `.cube` LUT support with an intensity slider
+- Pick any photo or video from the camera roll, adjust live, and save it as a **new** file (the original is untouched)
+- Sliders: exposure, contrast, highlights, shadows, fade, saturation, warmth, tint, grain amount/size, halation, bloom, sharpness, vignette amount/size/feather
+
+## LUTs
+Drop `.cube` files into **Files → On My iPhone → BalutCam → LUTs** (or use Import in the LUT tab), then tap Rescan. Two sample LUTs are copied there on first launch (source: `LUTs/`). Only 3D LUTs are supported; use display-referred (Rec.709) LUTs.
+
+## Layout
+```
+BalutCam/Engine   look parameters, presets, .cube parser, LUT library, Core Image film pipeline, media export
+BalutCam/Camera   AVFoundation capture + Metal preview
+BalutCam/UI       camera screen, editor screen, shared controls
+LUTs/             sample LUTs (bundled)
+project.yml       XcodeGen spec (the .xcodeproj is generated, not committed)
+```
+
+## Build
+GitHub Actions (`.github/workflows/ios-build.yml`) runs XcodeGen, builds for device unsigned, and uploads `BalutCam-unsigned-ipa`. Install it with AltStore/Sideloadly (they re-sign with your Apple ID). TestFlight/App Store needs a paid developer account and signing secrets.
+
+Local: `brew install xcodegen && xcodegen generate && open BalutCam.xcodeproj`.
+EOF

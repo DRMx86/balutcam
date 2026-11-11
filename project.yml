@@ -11,10 +11,8 @@ settings:
     PRODUCT_NAME: BalutCam
     MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: 1
-    SWIFT_VERSION: "5.9"
-    TARGETED_DEVICE_FAMILY: "1,2"
-    ENABLE_PREVIEWS: YES
-    GENERATE_INFOPLIST_FILE: YES
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1"
 
 targets:
   BalutCam:
@@ -23,12 +21,26 @@ targets:
     deploymentTarget: "16.0"
     sources:
       - path: BalutCam
+      - path: LUTs
+        type: folder
     settings:
       base:
-        INFOPLIST_KEY_CFBundleDisplayName: BalutCam
-        INFOPLIST_KEY_NSCameraUsageDescription: "BalutCam uses the camera to capture photos and videos with film-inspired LUT effects."
-        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "BalutCam imports your existing media so you can apply LUTs and save edited versions."
-        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "BalutCam saves processed photos and videos to your photo library."
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait"
-        INFOPLIST_KEY_UIRequiresFullScreen: YES
-        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.drmx86.BalutCam
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    info:
+      path: Support/Info.plist
+      properties:
+        CFBundleDisplayName: BalutCam
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        # Exposes Documents/ in the Files app so users can drop .cube files in Documents/LUTs
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        NSCameraUsageDescription: BalutCam uses the camera to capture photos and videos with film-inspired LUT effects.
+        NSMicrophoneUsageDescription: BalutCam records audio with your videos.
+        NSPhotoLibraryAddUsageDescription: BalutCam saves processed photos and videos to your photo library.
+        NSPhotoLibraryUsageDescription: BalutCam reads photos and videos you choose so you can apply looks to them.

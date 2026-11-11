@@ -2,9 +2,9 @@ name: ios-build
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -13,8 +13,10 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -22,57 +24,30 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Build for iOS Simulator
+      - name: Build for device (unsigned)
         run: |
-          xcodebuild \
-            -project BalutCam.xcodeproj \
-            -scheme BalutCam \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
-            -derivedDataPath .build/DerivedData \
-            -configuration Debug \
-            CODE_SIGNING_ALLOWED=NO \
-            build
-
-      - name: Archive simulator .app
-        run: |
-          set -euo pipefail
-          APP_PATH=".build/DerivedData/Build/Products/Debug-iphonesimulator/BalutCam.app"
-          test -d "$APP_PATH" || { echo "App not found at $APP_PATH"; find .build -name '*.app' -maxdepth 6; exit 1; }
-          mkdir -p artifacts
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "artifacts/BalutCam-simulator.zip"
-
-      - name: Archive for generic iOS device (no signing)
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          xcodebuild \
+          set -o pipefail
+          xcodebuild build \
             -project BalutCam.xcodeproj \
             -scheme BalutCam \
             -configuration Release \
+            -sdk iphoneos \
             -destination 'generic/platform=iOS' \
-            -archivePath .build/BalutCam.xcarchive \
             -derivedDataPath .build/DerivedData \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            archive
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            | tee build.log | grep -E "error:|warning: .*(deprecated)|BUILD (SUCCEEDED|FAILED)" || true
+          test -d .build/DerivedData/Build/Products/Release-iphoneos/BalutCam.app \
+            || { echo "Build failed, last log lines:"; tail -60 build.log; exit 1; }
 
-      - name: Package unsigned .ipa
-        continue-on-error: true
+      - name: Package unsigned IPA
         run: |
-          set -euo pipefail
-          APP_PATH=".build/BalutCam.xcarchive/Products/Applications/BalutCam.app"
-          test -d "$APP_PATH" || { echo "Archived app missing"; exit 1; }
           mkdir -p artifacts/Payload
-          cp -R "$APP_PATH" artifacts/Payload/
-          cd artifacts
-          zip -qry BalutCam-unsigned.ipa Payload
-          rm -rf Payload
+          cp -R .build/DerivedData/Build/Products/Release-iphoneos/BalutCam.app artifacts/Payload/
+          cd artifacts && zip -qry BalutCam-unsigned.ipa Payload && rm -rf Payload
 
-      - name: Upload artifacts
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: BalutCam-build
-          path: artifacts/*
-          if-no-files-found: warn
+          name: BalutCam-unsigned-ipa
+          path: artifacts/BalutCam-unsigned.ipa
           retention-days: 14
