@@ -10,7 +10,7 @@ on:
 jobs:
   build:
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -22,11 +22,57 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Build app for iOS simulator
+      - name: Build for iOS Simulator
         run: |
           xcodebuild \
             -project BalutCam.xcodeproj \
             -scheme BalutCam \
             -destination 'platform=iOS Simulator,name=iPhone 16' \
             -derivedDataPath .build/DerivedData \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
             build
+
+      - name: Archive simulator .app
+        run: |
+          set -euo pipefail
+          APP_PATH=".build/DerivedData/Build/Products/Debug-iphonesimulator/BalutCam.app"
+          test -d "$APP_PATH" || { echo "App not found at $APP_PATH"; find .build -name '*.app' -maxdepth 6; exit 1; }
+          mkdir -p artifacts
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "artifacts/BalutCam-simulator.zip"
+
+      - name: Archive for generic iOS device (no signing)
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project BalutCam.xcodeproj \
+            -scheme BalutCam \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath .build/BalutCam.xcarchive \
+            -derivedDataPath .build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            archive
+
+      - name: Package unsigned .ipa
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          APP_PATH=".build/BalutCam.xcarchive/Products/Applications/BalutCam.app"
+          test -d "$APP_PATH" || { echo "Archived app missing"; exit 1; }
+          mkdir -p artifacts/Payload
+          cp -R "$APP_PATH" artifacts/Payload/
+          cd artifacts
+          zip -qry BalutCam-unsigned.ipa Payload
+          rm -rf Payload
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: BalutCam-build
+          path: artifacts/*
+          if-no-files-found: warn
+          retention-days: 14
