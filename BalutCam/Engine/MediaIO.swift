@@ -39,12 +39,13 @@ enum MediaIO {
     // MARK: Photos
 
     /// Applies the look at full resolution and returns JPEG data.
-    static func processPhoto(data: Data, params: LookParameters) throws -> Data {
+    static func processPhoto(data: Data, params: LookParameters, format: OutputFormat = .full) throws -> Data {
         guard let src = CIImage(data: data, options: [.applyOrientationProperty: true]) else {
             throw MediaError.decode
         }
         let pipeline = FilmPipeline.shared
-        let out = pipeline.apply(src, params: params, seed: Int.random(in: 0..<10_000))
+        let framed = format.apply(src, scaleToTarget: false)
+        let out = pipeline.apply(framed, params: params, seed: Int.random(in: 0..<10_000))
         let quality = CIImageRepresentationOption(rawValue: kCGImageDestinationLossyCompressionQuality as String)
         guard let jpeg = pipeline.context.jpegRepresentation(
             of: out, colorSpace: pipeline.colorSpace, options: [quality: 0.95]) else {
@@ -75,16 +76,24 @@ enum MediaIO {
     // MARK: Video (existing clips)
 
     /// Used both for live preview in the editor and for the final export.
-    static func makeVideoComposition(asset: AVAsset, params: LookParameters) -> AVVideoComposition {
-        AVMutableVideoComposition(asset: asset, applyingCIFiltersWithHandler: { request in
-            let source = request.sourceImage
+    static func makeVideoComposition(asset: AVAsset, params: LookParameters,
+                                     format: OutputFormat = .full) -> AVVideoComposition {
+        let comp = AVMutableVideoComposition(asset: asset, applyingCIFiltersWithHandler: { request in
+            let framed = format.apply(request.sourceImage, scaleToTarget: true)
             let seed = Int(request.compositionTime.seconds * 24)
-            let out = FilmPipeline.shared.apply(source, params: params, seed: seed)
+            let out = FilmPipeline.shared.apply(framed, params: params, seed: seed)
             request.finish(with: out, context: FilmPipeline.shared.context)
         })
+        if format != .full, let track = asset.tracks(withMediaType: .video).first {
+            let size = track.naturalSize.applying(track.preferredTransform)
+            if let target = format.videoSize(landscape: abs(size.width) > abs(size.height)) {
+                comp.renderSize = target
+            }
+        }
+        return comp
     }
 
-    static func exportVideo(url: URL, params: LookParameters,
+    static func exportVideo(url: URL, params: LookParameters, format: OutputFormat = .full,
                             progress: @escaping (Float) -> Void) async throws -> URL {
         let asset = AVURLAsset(url: url)
         guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
@@ -94,7 +103,7 @@ enum MediaIO {
             .appendingPathComponent("filmlab-\(UUID().uuidString).mov")
         session.outputURL = out
         session.outputFileType = .mov
-        session.videoComposition = makeVideoComposition(asset: asset, params: params)
+        session.videoComposition = makeVideoComposition(asset: asset, params: params, format: format)
 
         let poller = Task {
             while !Task.isCancelled {

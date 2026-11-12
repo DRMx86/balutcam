@@ -26,6 +26,15 @@ final class FilmPipeline {
         ])
     }
 
+    /// Keeps only one colour channel (opaque), used to build the VHS colour misalignment.
+    private func isolate(_ img: CIImage, channel c: Int) -> CIImage {
+        let zero = CIVector(x: 0, y: 0, z: 0, w: 0)
+        return matrix(img,
+                      r: c == 0 ? CIVector(x: 1, y: 0, z: 0, w: 0) : zero,
+                      g: c == 1 ? CIVector(x: 0, y: 1, z: 0, w: 0) : zero,
+                      b: c == 2 ? CIVector(x: 0, y: 0, z: 1, w: 0) : zero)
+    }
+
     /// `seed` changes the grain pattern (pass the frame counter / time for video).
     func apply(_ input: CIImage, params p: LookParameters, seed: Int = 0) -> CIImage {
         let extent = input.extent
@@ -125,6 +134,57 @@ final class FilmPipeline {
                 "inputSharpness": p.sharpness * 0.8,
                 "inputRadius": 1.5 * unit
             ])
+        }
+
+        // 9b. VHS: softness, horizontal colour bleed + channel misalignment, scanlines, tape noise
+        if p.vhsSoftness > 0.001 {
+            img = img.clampedToExtent().applyingFilter("CIGaussianBlur", parameters: [
+                "inputRadius": 2.2 * unit * CGFloat(p.vhsSoftness)
+            ]).cropped(to: extent)
+        }
+        if p.vhsBleed > 0.001 {
+            let bleed = CGFloat(p.vhsBleed)
+            let smeared = img.clampedToExtent().applyingFilter("CIMotionBlur", parameters: [
+                "inputRadius": 14 * unit * bleed, "inputAngle": 0.0
+            ]).cropped(to: extent).clampedToExtent()
+            let shift = 5 * unit * bleed
+            let red = isolate(smeared, channel: 0)
+                .transformed(by: CGAffineTransform(translationX: shift, y: 0)).cropped(to: extent)
+            let green = isolate(img, channel: 1)
+            let blue = isolate(smeared, channel: 2)
+                .transformed(by: CGAffineTransform(translationX: -shift, y: 0)).cropped(to: extent)
+            img = red.applyingFilter("CIScreenBlendMode", parameters: [kCIInputBackgroundImageKey: green])
+                .applyingFilter("CIScreenBlendMode", parameters: [kCIInputBackgroundImageKey: blue])
+        }
+        if p.scanlines > 0.001, let stripes = CIFilter(name: "CIStripesGenerator") {
+            let dark = CGFloat(1 - 0.55 * p.scanlines)
+            stripes.setValue(CIColor(red: 1, green: 1, blue: 1), forKey: "inputColor0")
+            stripes.setValue(CIColor(red: dark, green: dark, blue: dark), forKey: "inputColor1")
+            stripes.setValue(max(1.0, 1.6 * unit), forKey: "inputWidth")
+            stripes.setValue(0.8, forKey: "inputSharpness")
+            if let lines = stripes.outputImage {
+                let horizontal = lines.transformed(by: CGAffineTransform(rotationAngle: .pi / 2)).cropped(to: extent)
+                img = img.applyingFilter("CIMultiplyBlendMode", parameters: [kCIInputBackgroundImageKey: horizontal])
+            }
+        }
+        if p.tapeNoise > 0.001, let noise = CIFilter(name: "CIRandomGenerator")?.outputImage {
+            let shift = CGAffineTransform(translationX: CGFloat((seed &* 71) % 997) * 3,
+                                          y: CGFloat((seed &* 53) % 991) * 3)
+            let streaks = noise.transformed(by: shift)
+                .transformed(by: CGAffineTransform(scaleX: max(8, 30 * unit), y: max(1, 1.6 * unit)))
+                .cropped(to: extent)
+            let gain = CGFloat(p.tapeNoise) * 5
+            let gv = CIVector(x: gain, y: 0, z: 0, w: 0)
+            let bias = -gain * 0.82
+            let peaks = streaks.applyingFilter("CIColorMatrix", parameters: [
+                "inputRVector": gv, "inputGVector": gv, "inputBVector": gv,
+                "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0),
+                "inputBiasVector": CIVector(x: bias, y: bias, z: bias, w: 1)
+            ]).applyingFilter("CIColorClamp", parameters: [
+                "inputMinComponents": CIVector(x: 0, y: 0, z: 0, w: 1),
+                "inputMaxComponents": CIVector(x: 1, y: 1, z: 1, w: 1)
+            ])
+            img = peaks.applyingFilter("CIScreenBlendMode", parameters: [kCIInputBackgroundImageKey: img])
         }
 
         // 10. Grain (monochrome noise, soft-light blended)

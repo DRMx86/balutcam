@@ -61,35 +61,53 @@ final class PresetStore: ObservableObject {
         make("None") { _ in },
         make("Gold 200") {
             $0.warmth = 0.45; $0.saturation = 1.15; $0.contrast = 1.08; $0.fade = 0.12
-            $0.shadowLift = 0.1; $0.grain = 0.35; $0.halation = 0.15; $0.bloom = 0.1; $0.vignette = 0.25
+            $0.shadowLift = 0.1; $0.halation = 0.15; $0.bloom = 0.1; $0.vignette = 0.25
         },
         make("Portra 400") {
             $0.warmth = 0.2; $0.tint = -0.05; $0.saturation = 0.92; $0.contrast = 0.95; $0.fade = 0.15
-            $0.shadowLift = 0.25; $0.highlightRecovery = 0.3; $0.grain = 0.3; $0.vignette = 0.15
+            $0.shadowLift = 0.25; $0.highlightRecovery = 0.3; $0.vignette = 0.15
         },
         make("Ektar 100") {
-            $0.warmth = 0.1; $0.saturation = 1.4; $0.contrast = 1.2; $0.grain = 0.12; $0.vignette = 0.2
+            $0.warmth = 0.1; $0.saturation = 1.4; $0.contrast = 1.2; $0.vignette = 0.2
         },
         make("Ultramax 400") {
-            $0.warmth = 0.35; $0.saturation = 1.25; $0.contrast = 1.12; $0.grain = 0.5; $0.grainSize = 1.2
+            $0.warmth = 0.35; $0.saturation = 1.25; $0.contrast = 1.12; $0.grainSize = 1.2
             $0.halation = 0.2; $0.vignette = 0.3
         },
         make("ColorPlus 200") {
             $0.warmth = 0.5; $0.tint = 0.08; $0.saturation = 1.05; $0.contrast = 1.05; $0.fade = 0.18
-            $0.grain = 0.4; $0.vignette = 0.3
+            $0.vignette = 0.3
         },
         make("Vision3 500T") {
-            $0.warmth = -0.25; $0.tint = -0.05; $0.contrast = 1.05; $0.fade = 0.08; $0.grain = 0.55
+            $0.warmth = -0.25; $0.tint = -0.05; $0.contrast = 1.05; $0.fade = 0.08; 
             $0.halation = 0.45; $0.bloom = 0.2; $0.vignette = 0.2
         },
         make("Tri-X 400 B&W") {
-            $0.saturation = 0; $0.contrast = 1.3; $0.fade = 0.05; $0.grain = 0.75; $0.grainSize = 1.3
+            $0.saturation = 0; $0.contrast = 1.3; $0.fade = 0.05; $0.grainSize = 1.3
             $0.vignette = 0.3
         },
         make("Disposable Flash") {
             $0.exposure = 0.15; $0.warmth = 0.3; $0.saturation = 1.2; $0.contrast = 1.2
-            $0.highlightRecovery = 0.1; $0.grain = 0.5; $0.bloom = 0.25; $0.halation = 0.2
+            $0.highlightRecovery = 0.1; $0.bloom = 0.25; $0.halation = 0.2
             $0.vignette = 0.55; $0.vignetteSize = 0.35
+        }
+        ,
+        // VHS looks (grain stays at 0 like every preset; use the Film tab to add it)
+        make("VHS 1989") {
+            $0.warmth = 0.15; $0.saturation = 1.2; $0.contrast = 0.95; $0.fade = 0.2; $0.shadowLift = 0.15
+            $0.vhsBleed = 0.6; $0.scanlines = 0.35; $0.tapeNoise = 0.25; $0.vhsSoftness = 0.35; $0.vignette = 0.2
+        },
+        make("VHS Camcorder") {
+            $0.saturation = 1.3; $0.tint = -0.05; $0.contrast = 1.05; $0.exposure = 0.1; $0.highlightRecovery = 0.1
+            $0.bloom = 0.3; $0.vhsBleed = 0.5; $0.scanlines = 0.2; $0.tapeNoise = 0.1; $0.vhsSoftness = 0.25
+        },
+        make("Worn Tape") {
+            $0.warmth = -0.1; $0.saturation = 0.8; $0.contrast = 0.9; $0.fade = 0.3; $0.shadowLift = 0.2
+            $0.vhsBleed = 0.8; $0.scanlines = 0.45; $0.tapeNoise = 0.6; $0.vhsSoftness = 0.5; $0.vignette = 0.35
+        },
+        make("Cold VHS") {
+            $0.warmth = -0.35; $0.tint = 0.1; $0.saturation = 1.1; $0.fade = 0.2
+            $0.vhsBleed = 0.55; $0.scanlines = 0.3; $0.tapeNoise = 0.3; $0.vhsSoftness = 0.3; $0.vignette = 0.25
         }
     ]
 }

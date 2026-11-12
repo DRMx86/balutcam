@@ -2,22 +2,16 @@ import AVFoundation
 import CoreImage
 import UIKit
 
-/// Live capture: every camera frame goes through FilmPipeline, then to the preview and (if recording) the file writer.
+/// Live capture: every camera frame is cropped to the chosen format, graded by FilmPipeline,
+/// then sent to the preview and (if recording) the file writer.
 final class CameraService: NSObject, ObservableObject {
-    enum Mode: String, CaseIterable, Identifiable {
-        case photo = "PHOTO", video = "VIDEO"
-        var id: String { rawValue }
-    }
-
-    @Published var mode: Mode = .photo
     @Published var isRecording = false
     @Published var recordingSeconds = 0
     @Published var permissionDenied = false
-    @Published var flashOn = false
-    @Published var usingFront = false
     @Published var message: String?
 
     private var look: LookStore?
+    private var settings: AppSettings?
     weak var preview: MetalPreviewView?
 
     private let session = AVCaptureSession()
@@ -29,35 +23,45 @@ final class CameraService: NSObject, ObservableObject {
     private var videoInput: AVCaptureDeviceInput?
     private var configured = false
 
+    // sessionQueue
+    private var captureAngle = 90   // 90 = portrait, 0 / 180 = landscape
+
     private let frameLock = NSLock()
     private var latest: CIImage?
     private var drawPending = false
 
-    // Touched only on outputQueue
+    // outputQueue only
     private var frameCount = 0
     private var wantsRecording = false
     private var writer: AVAssetWriter?
     private var writerVideo: AVAssetWriterInput?
     private var writerAudio: AVAssetWriterInput?
     private var adaptor: AVAssetWriterInputPixelBufferAdaptor?
+    private var writerSize = CGSize.zero
     private var sessionStarted = false
 
     private var timer: Timer?
+    private var observingOrientation = false
 
-    func bind(_ look: LookStore) { self.look = look }
+    private var config: AppConfig { settings?.snapshot ?? AppConfig() }
+
+    func bind(look: LookStore, settings: AppSettings) {
+        self.look = look
+        self.settings = settings
+    }
 
     // MARK: Session lifecycle
 
     func start() {
+        beginOrientationUpdates()
         Task {
             let video = await AVCaptureDevice.requestAccess(for: .video)
             _ = await AVCaptureDevice.requestAccess(for: .audio)
             await MainActor.run { self.permissionDenied = !video }
             guard video else { return }
-            let front = await MainActor.run { self.usingFront }
             sessionQueue.async {
                 if !self.configured {
-                    self.configureSession(front: front)
+                    self.configureSession()
                     self.configured = true
                 }
                 if !self.session.isRunning { self.session.startRunning() }
@@ -75,11 +79,11 @@ final class CameraService: NSObject, ObservableObject {
         AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: front ? .front : .back)
     }
 
-    private func configureSession(front: Bool) {
+    private func configureSession() {
         session.beginConfiguration()
         session.sessionPreset = .high
 
-        if let dev = device(front: front),
+        if let dev = device(front: config.usingFront),
            let input = try? AVCaptureDeviceInput(device: dev),
            session.canAddInput(input) {
             session.addInput(input)
@@ -107,29 +111,89 @@ final class CameraService: NSObject, ObservableObject {
             photoOutput.isHighResolutionCaptureEnabled = true
         }
         session.commitConfiguration()
-        applyConnectionSettings(front: front)
+        applyConnectionSettings()
+        applyFrameRateLocked()
     }
 
-    private func applyConnectionSettings(front: Bool) {
+    /// Rotation follows the device; the front camera is always mirrored (preview, photos and video).
+    private func applyConnectionSettings() {
+        let front = config.usingFront
+        let angle = captureAngle
         for conn in [videoOutput.connection(with: .video), photoOutput.connection(with: .video)].compactMap({ $0 }) {
             if #available(iOS 17.0, *) {
-                if conn.isVideoRotationAngleSupported(90) { conn.videoRotationAngle = 90 }
+                if conn.isVideoRotationAngleSupported(CGFloat(angle)) { conn.videoRotationAngle = CGFloat(angle) }
             } else if conn.isVideoOrientationSupported {
-                conn.videoOrientation = .portrait
+                switch angle {
+                case 0: conn.videoOrientation = .landscapeRight
+                case 180: conn.videoOrientation = .landscapeLeft
+                default: conn.videoOrientation = .portrait
+                }
+            }
+            if conn.isVideoMirroringSupported {
+                conn.automaticallyAdjustsVideoMirroring = false
+                conn.isVideoMirrored = front
             }
         }
-        if let c = videoOutput.connection(with: .video), c.isVideoMirroringSupported {
-            c.automaticallyAdjustsVideoMirroring = false
-            c.isVideoMirrored = front
+    }
+
+    // MARK: Frame rate
+
+    func applyFrameRate() {
+        sessionQueue.async { self.applyFrameRateLocked() }
+    }
+
+    private func applyFrameRateLocked() {
+        guard let dev = videoInput?.device else { return }
+        let rate = config.frameRate
+        let supported = dev.activeFormat.videoSupportedFrameRateRanges.contains {
+            $0.minFrameRate <= rate.fps + 0.01 && rate.fps - 0.01 <= $0.maxFrameRate
+        }
+        guard supported else {
+            toast("\(rate.label) fps isn't supported by this camera")
+            return
+        }
+        do {
+            try dev.lockForConfiguration()
+            dev.activeVideoMinFrameDuration = rate.frameDuration
+            dev.activeVideoMaxFrameDuration = rate.frameDuration
+            dev.unlockForConfiguration()
+        } catch {
+            toast("Could not set frame rate")
+        }
+    }
+
+    // MARK: Orientation
+
+    private func beginOrientationUpdates() {
+        guard !observingOrientation else { return }
+        observingOrientation = true
+        UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+        NotificationCenter.default.addObserver(self, selector: #selector(orientationChanged),
+                                               name: UIDevice.orientationDidChangeNotification, object: nil)
+        orientationChanged()
+    }
+
+    @objc private func orientationChanged() {
+        guard !isRecording else { return }   // keep the frame size fixed while recording
+        let angle: Int
+        switch UIDevice.current.orientation {
+        case .portrait: angle = 90
+        case .landscapeLeft: angle = 0
+        case .landscapeRight: angle = 180
+        default: return
+        }
+        sessionQueue.async {
+            guard angle != self.captureAngle else { return }
+            self.captureAngle = angle
+            if self.configured { self.applyConnectionSettings() }
         }
     }
 
     func flipCamera() {
         guard !isRecording else { return }
-        usingFront.toggle()
-        let front = usingFront
+        settings?.config.usingFront.toggle()
         sessionQueue.async {
-            guard let dev = self.device(front: front),
+            guard let dev = self.device(front: self.config.usingFront),
                   let newInput = try? AVCaptureDeviceInput(device: dev) else { return }
             self.session.beginConfiguration()
             if let old = self.videoInput { self.session.removeInput(old) }
@@ -138,7 +202,8 @@ final class CameraService: NSObject, ObservableObject {
                 self.videoInput = newInput
             }
             self.session.commitConfiguration()
-            self.applyConnectionSettings(front: front)
+            self.applyConnectionSettings()
+            self.applyFrameRateLocked()
         }
     }
 
@@ -168,7 +233,7 @@ final class CameraService: NSObject, ObservableObject {
         let settings = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.jpeg])
         settings.isHighResolutionPhotoEnabled = true
         if photoOutput.supportedFlashModes.contains(.on) {
-            settings.flashMode = flashOn ? .on : .off
+            settings.flashMode = config.flashOn ? .on : .off
         }
         photoOutput.capturePhoto(with: settings, delegate: self)
     }
@@ -185,7 +250,7 @@ final class CameraService: NSObject, ObservableObject {
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             self?.recordingSeconds += 1
         }
-        setTorch(flashOn && !usingFront)
+        setTorch(config.flashOn && !config.usingFront)
         outputQueue.async { self.wantsRecording = true }
     }
 
@@ -194,6 +259,7 @@ final class CameraService: NSObject, ObservableObject {
         timer?.invalidate(); timer = nil
         setTorch(false)
         outputQueue.async { self.finishRecording() }
+        orientationChanged()
     }
 
     private func setTorch(_ on: Bool) {
@@ -218,7 +284,11 @@ final class CameraService: NSObject, ObservableObject {
             AVVideoCodecKey: AVVideoCodecType.h264,
             AVVideoWidthKey: w,
             AVVideoHeightKey: h,
-            AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: w * h * 6]
+            AVVideoCompressionPropertiesKey: [
+                AVVideoAverageBitRateKey: w * h * 6,
+                AVVideoExpectedSourceFrameRateKey: config.frameRate.fps,
+                AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel
+            ]
         ]
         let vin = AVAssetWriterInput(mediaType: .video, outputSettings: vSettings)
         vin.expectsMediaDataInRealTime = true
@@ -245,6 +315,7 @@ final class CameraService: NSObject, ObservableObject {
         writer = wr
         writerVideo = vin
         adaptor = ad
+        writerSize = CGSize(width: w, height: h)
         sessionStarted = false
     }
 
@@ -254,6 +325,9 @@ final class CameraService: NSObject, ObservableObject {
             beginWriter(width: Int(image.extent.width), height: Int(image.extent.height))
         }
         guard let wr = writer, let vin = writerVideo, let ad = adaptor else { return }
+        // Skip frames whose size no longer matches (e.g. orientation changed mid-recording).
+        guard Int(image.extent.width) & ~1 == Int(writerSize.width),
+              Int(image.extent.height) & ~1 == Int(writerSize.height) else { return }
         if !sessionStarted {
             guard wr.startWriting() else {
                 wantsRecording = false
@@ -332,7 +406,8 @@ extension CameraService: AVCaptureVideoDataOutputSampleBufferDelegate, AVCapture
         guard let pixels = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         frameCount &+= 1
         let params = look?.snapshot ?? .neutral
-        let graded = FilmPipeline.shared.apply(CIImage(cvPixelBuffer: pixels), params: params, seed: frameCount)
+        let framed = config.format.apply(CIImage(cvPixelBuffer: pixels), scaleToTarget: true)
+        let graded = FilmPipeline.shared.apply(framed, params: params, seed: frameCount)
         publish(graded)
         if wantsRecording || writer != nil {
             appendVideo(graded, time: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
@@ -347,9 +422,10 @@ extension CameraService: AVCapturePhotoCaptureDelegate {
             return
         }
         let params = look?.snapshot ?? .neutral
+        let format = config.format
         Task.detached(priority: .userInitiated) {
             do {
-                let jpeg = try MediaIO.processPhoto(data: data, params: params)
+                let jpeg = try MediaIO.processPhoto(data: data, params: params, format: format)
                 try await MediaIO.savePhoto(jpeg)
                 self.toast("Photo saved")
             } catch {

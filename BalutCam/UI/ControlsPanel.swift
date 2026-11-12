@@ -9,7 +9,7 @@ struct SliderSpec: Identifiable {
 }
 
 enum ControlTab: String, CaseIterable, Identifiable {
-    case presets = "Presets", lut = "LUT", light = "Light", color = "Color", film = "Film", vignette = "Vignette"
+    case presets = "Presets", lut = "LUT", light = "Light", color = "Color", film = "Film", vhs = "VHS", vignette = "Vignette"
     var id: String { rawValue }
 
     var sliders: [SliderSpec] {
@@ -36,6 +36,13 @@ enum ControlTab: String, CaseIterable, Identifiable {
                 SliderSpec(title: "Bloom", key: \.bloom, range: 0...1),
                 SliderSpec(title: "Sharpness", key: \.sharpness, range: 0...1)
             ]
+        case .vhs:
+            return [
+                SliderSpec(title: "Color bleed", key: \.vhsBleed, range: 0...1),
+                SliderSpec(title: "Scanlines", key: \.scanlines, range: 0...1),
+                SliderSpec(title: "Tape noise", key: \.tapeNoise, range: 0...1),
+                SliderSpec(title: "Softness", key: \.vhsSoftness, range: 0...1)
+            ]
         case .vignette:
             return [
                 SliderSpec(title: "Amount", key: \.vignette, range: 0...1),
@@ -51,16 +58,17 @@ enum ControlTab: String, CaseIterable, Identifiable {
 /// Tabbed controls shared by the camera and the editor.
 struct ControlsPanel: View {
     @EnvironmentObject var look: LookStore
-    @State private var tab: ControlTab = .presets
+    @AppStorage("balutcam.tab") private var tabRaw = ControlTab.presets.rawValue
+    private var tab: ControlTab { ControlTab(rawValue: tabRaw) ?? .presets }
 
     var body: some View {
         VStack(spacing: 8) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
                     ForEach(ControlTab.allCases) { t in
-                        Button(t.rawValue) { tab = t }
-                            .font(.subheadline.weight(.semibold))
-                            .padding(.horizontal, 12).padding(.vertical, 6)
+                        Button(t.rawValue) { tabRaw = t.rawValue }
+                            .font(.callout.weight(.semibold))
+                            .padding(.horizontal, 16).padding(.vertical, 10)
                             .background(tab == t ? Color.white : Color.white.opacity(0.12), in: Capsule())
                             .foregroundColor(tab == t ? .black : .white)
                     }
@@ -94,8 +102,8 @@ struct SliderRow: View {
     var body: some View {
         HStack {
             Text(spec.title)
-                .font(.footnote)
-                .frame(width: 84, alignment: .leading)
+                .font(.callout)
+                .frame(width: 100, alignment: .leading)
                 .onTapGesture(count: 2) {
                     look.binding(spec.key).wrappedValue = LookParameters.neutral[keyPath: spec.key]
                 }
@@ -152,8 +160,8 @@ struct PresetStrip: View {
             HStack(spacing: 8) {
                 ForEach(presets.all) { preset in
                     Button(preset.name) { look.apply(preset) }
-                        .font(.subheadline)
-                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .font(.callout)
+                        .padding(.horizontal, 18).padding(.vertical, 12)
                         .background(look.activePresetID == preset.id ? Color.orange : Color.white.opacity(0.15),
                                     in: RoundedRectangle(cornerRadius: 10))
                         .foregroundColor(.white)
@@ -181,7 +189,7 @@ struct LUTView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    Text("Intensity").font(.footnote).frame(width: 84, alignment: .leading)
+                    Text("Intensity").font(.callout).frame(width: 100, alignment: .leading)
                     Slider(value: look.binding(\.lutIntensity), in: 0...1)
                     Text(String(format: "%.2f", look.params.lutIntensity))
                         .font(.caption.monospacedDigit()).frame(width: 44, alignment: .trailing)
@@ -239,7 +247,7 @@ struct LUTView: View {
                 Spacer()
                 if selected { Image(systemName: "checkmark") }
             }
-            .padding(.horizontal, 12).padding(.vertical, 8)
+            .padding(.horizontal, 14).padding(.vertical, 12)
             .background(selected ? Color.orange.opacity(0.35) : Color.white.opacity(0.1),
                         in: RoundedRectangle(cornerRadius: 8))
             .foregroundColor(.white)
